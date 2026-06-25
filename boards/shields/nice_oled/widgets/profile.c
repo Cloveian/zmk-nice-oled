@@ -48,7 +48,17 @@ static void draw_active_profile_text(lv_obj_t *canvas, const struct status_state
 #endif // CONFIG_NICE_EPAPER_ON
 
 void draw_profile_status(lv_obj_t *canvas, const struct status_state *state) {
+#if (!IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)) && \
+    (IS_ENABLED(CONFIG_NICE_OLED_WIDGET_BT_PROFILE_HIDE_DOTS_ON_USB) || \
+     IS_ENABLED(CONFIG_NICE_OLED_WIDGET_BT_PROFILE_HIDE_TEXT_ON_USB))
+    bool on_usb = (state->selected_endpoint.transport == ZMK_TRANSPORT_USB);
+#endif
+
 #if !IS_ENABLED(CONFIG_NICE_EPAPER_ON)
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_BT_PROFILE_HIDE_TEXT_ON_USB) && \
+    (!IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+    if (!on_usb)
+#endif
     draw_active_profile_text(canvas, state);
 #endif // CONFIG_NICE_EPAPER_ON
 
@@ -61,7 +71,15 @@ void draw_profile_status(lv_obj_t *canvas, const struct status_state *state) {
                            i == state->active_profile_index ? &profile_active : &profile, &img_dsc);
     }
 #else
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_BT_PROFILE_HIDE_DOTS_ON_USB) && \
+    (!IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+    if (!on_usb)
+#endif
     draw_inactive_profiles(canvas, state);
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_BT_PROFILE_HIDE_DOTS_ON_USB) && \
+    (!IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL))
+    if (!on_usb)
+#endif
     draw_active_profile(canvas, state);
 #endif
 }
