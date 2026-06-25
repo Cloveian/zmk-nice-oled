@@ -125,7 +125,6 @@ def main():
     lines.append("#endif")
     lines.append("")
 
-    # Fixed 9px text area, PixelOperatorMono at size 16 (no antialiasing)
     TEXT_H = 7
     GAP = 1
     FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "fonts", "Tiny5-Regular.ttf")
@@ -147,11 +146,16 @@ def main():
             Y_OFF = -20
             tmp = Image.new("RGBA", (1, 1))
             dr = ImageDraw.Draw(tmp)
-            try: bb = dr.textbbox((0, Y_OFF), args.text, font=font); tw, th = bb[2]-bb[0], bb[3]-bb[1]
-            except AttributeError: tw, th = dr.textsize(args.text, font=font)
+            try:
+                bb = dr.textbbox((0, Y_OFF), args.text, font=font)
+                tw, th = bb[2]-bb[0], bb[3]-bb[1]
+                y_draw = Y_OFF - bb[1]
+            except AttributeError:
+                tw, th = dr.textsize(args.text, font=font)
+                y_draw = 0
             tt = Image.new("RGBA", (tw, th), (255,255,255,0))
             dr = ImageDraw.Draw(tt)
-            dr.text((0, Y_OFF - bb[1]), args.text, fill=(0,0,0,255), font=font)
+            dr.text((0, y_draw), args.text, fill=(0,0,0,255), font=font)
             try: tr = tt.transpose(Image.Transpose.TRANSPOSE)
             except AttributeError: tr = tt.transpose(Image.TRANSPOSE)
             tr = tr.transpose(Image.FLIP_LEFT_RIGHT)
