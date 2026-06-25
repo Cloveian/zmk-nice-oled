@@ -91,6 +91,21 @@ const lv_img_dsc_t *spaceman_imgs[] = {&spaceman_00, &spaceman_01, &spaceman_02,
                                        &spaceman_12, &spaceman_13, &spaceman_14, &spaceman_15,
                                        &spaceman_16, &spaceman_17, &spaceman_18, &spaceman_19};
 
+#elif IS_ENABLED(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER)
+LV_IMG_DECLARE(boikisser_0);
+LV_IMG_DECLARE(boikisser_1);
+LV_IMG_DECLARE(boikisser_2);
+LV_IMG_DECLARE(boikisser_3);
+LV_IMG_DECLARE(boikisser_4);
+LV_IMG_DECLARE(boikisser_5);
+LV_IMG_DECLARE(boikisser_6);
+LV_IMG_DECLARE(boikisser_7);
+
+const lv_img_dsc_t *boikisser_imgs[] = {
+    &boikisser_0, &boikisser_1, &boikisser_2, &boikisser_3,
+    &boikisser_4, &boikisser_5, &boikisser_6, &boikisser_7,
+};
+
 #elif IS_ENABLED(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_POKEMON)
 LV_IMG_DECLARE(pokemon_00);
 LV_IMG_DECLARE(pokemon_01);
@@ -184,6 +199,8 @@ void draw_animation(lv_obj_t *canvas, struct zmk_widget_screen *widget) {
     lv_animimg_set_src(art, (const void **)cat_imgs, 8);
 #elif IS_ENABLED(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_SPACEMAN)
     lv_animimg_set_src(art, (const void **)spaceman_imgs, 20);
+#elif IS_ENABLED(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER)
+    lv_animimg_set_src(art, (const void **)boikisser_imgs, 8);
 #elif IS_ENABLED(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_POKEMON)
     lv_animimg_set_src(art, (const void **)pokemon_imgs, 48);
 #else
