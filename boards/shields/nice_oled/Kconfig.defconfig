@@ -162,11 +162,6 @@ config NICE_OLED_BOIKISSER_TEXT
       system runs gen_boikisser.py to bake the text into the
       animation C arrays at compile time.
 
-config NICE_OLED_BOIKISSER_TEXT_HEIGHT
-    int "Height of boikisser text area in pixels"
-    default 12
-    depends on NICE_OLED_BOIKISSER_TEXT != ""
-
 config NICE_OLED_BOIKISSER_TEXT_FRAMES
     string "Comma-separated 1-indexed frames to show text on"
     default "3,4,5,6"
