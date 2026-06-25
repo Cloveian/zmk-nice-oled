@@ -95,7 +95,26 @@ if(CONFIG_ZMK_DISPLAY AND CONFIG_NICE_OLED_WIDGET_STATUS)
       # target_sources_ifdef(CONFIG_NICE_OLED_WIDGET_STATIC_IMAGE_PERIPHERAL_VIM app PRIVATE assets/vim.c)
       target_sources_ifdef(CONFIG_NICE_OLED_WIDGET_STATIC_IMAGE_PERIPHERAL_VIP_MARCOS app PRIVATE assets/vip_marcos.c)
       target_sources_ifdef(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_POKEMON app PRIVATE assets/pokemon.c)
-      target_sources_ifdef(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER app PRIVATE assets/boikisser.c)
+
+      # boikisser: build-time text generation when CONFIG_NICE_OLED_BOIKISSER_TEXT is set
+      if(DEFINED CONFIG_NICE_OLED_BOIKISSER_TEXT AND NOT "${CONFIG_NICE_OLED_BOIKISSER_TEXT}" STREQUAL "")
+        set(BOIKISSER_GENERATED ${CMAKE_CURRENT_BINARY_DIR}/boikisser.c)
+        add_custom_command(
+          OUTPUT ${BOIKISSER_GENERATED}
+          COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/assets/gen_boikisser.py
+            -o ${BOIKISSER_GENERATED}
+            --text "${CONFIG_NICE_OLED_BOIKISSER_TEXT}"
+            --text-frames "${CONFIG_NICE_OLED_BOIKISSER_TEXT_FRAMES}"
+            --symbol-prefix boikisser
+          DEPENDS ${CMAKE_CURRENT_LIST_DIR}/assets/gen_boikisser.py
+          COMMENT "Generating boikisser frames with text: ${CONFIG_NICE_OLED_BOIKISSER_TEXT}"
+        )
+        if(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER)
+          zephyr_library_sources(${BOIKISSER_GENERATED})
+        endif()
+      else()
+        target_sources_ifdef(CONFIG_NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER app PRIVATE assets/boikisser.c)
+      endif()
       zephyr_library_sources(widgets/animation.c)
       zephyr_library_sources(widgets/screen_peripheral.c)
     endif()

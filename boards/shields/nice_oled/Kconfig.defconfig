@@ -151,6 +151,29 @@ config NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER
     bool "Enable boikisser animation on peripheral"
     default n
 
+if NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER
+
+config NICE_OLED_BOIKISSER_TEXT
+    string "Text to overlay on boikisser animation"
+    default ""
+    help
+      Text rendered above the boikisser character. Leave empty
+      to use the pre-generated frames. When non-empty, the build
+      system runs gen_boikisser.py to bake the text into the
+      animation C arrays at compile time.
+
+config NICE_OLED_BOIKISSER_TEXT_HEIGHT
+    int "Height of boikisser text area in pixels"
+    default 12
+    depends on NICE_OLED_BOIKISSER_TEXT != ""
+
+config NICE_OLED_BOIKISSER_TEXT_FRAMES
+    string "Comma-separated 1-indexed frames to show text on"
+    default "3,4,5,6"
+    depends on NICE_OLED_BOIKISSER_TEXT != ""
+
+endif # NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER
+
 config NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_MS
     int "Animation length in milliseconds"
     default 10000 if NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_POKEMON
