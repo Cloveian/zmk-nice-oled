@@ -493,6 +493,14 @@ config NICE_OLED_WIDGET_PROFILE_BIG
     default y if NICE_EPAPER_ON
     default y if NICE_CUSTOM_ON
     default n
+
+config NICE_OLED_WIDGET_BT_PROFILE_HIDE_DOTS_ON_USB
+    bool "Hide BT profile dots when USB is the active endpoint"
+    default n
+
+config NICE_OLED_WIDGET_BT_PROFILE_HIDE_TEXT_ON_USB
+    bool "Hide BT profile number text when USB is the active endpoint"
+    default y
 # }}}
 ### NICE_OLED_WIDGET_CENTRAL_SHOW_BATTERY_PERIPHERAL {{{
 config NICE_OLED_WIDGET_CENTRAL_SHOW_BATTERY_PERIPHERAL_ALL
