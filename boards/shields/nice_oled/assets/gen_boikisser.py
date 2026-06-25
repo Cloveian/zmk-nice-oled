@@ -154,6 +154,7 @@ def main():
             dr.text((0, Y_OFF - bb[1]), args.text, fill=(0,0,0,255), font=font)
             try: tr = tt.transpose(Image.Transpose.TRANSPOSE)
             except AttributeError: tr = tt.transpose(Image.TRANSPOSE)
+            tr = tr.transpose(Image.FLIP_LEFT_RIGHT)
             # tr is (th, tw); center in (TEXT_H, _H=32)
             text_img = Image.new("RGBA", (TEXT_H, _H), (255,255,255,0))
             ox = max(0, (TEXT_H - th) // 2)
