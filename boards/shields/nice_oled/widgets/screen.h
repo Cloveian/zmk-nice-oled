@@ -17,6 +17,7 @@ struct zmk_widget_screen {
     int16_t media_scroll_offset;
     uint8_t media_scroll_phase;
     lv_timer_t *media_scroll_timer;
+    lv_timer_t *media_pos_timer;  // 1-second tick while playing
     int64_t media_position_ts;    // k_uptime_get() at last extended event
 #endif
 };
