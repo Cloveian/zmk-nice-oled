@@ -1,14 +1,10 @@
 /*******************************************************************************
  * Size: 16 px
  * Bpp: 1
- * Opts: --font /home/cloveian/Downloads/cloveian5px.ttf --size 16 --format lvgl --bpp 1 --range 0x20-0x7F --no-compress -o hid_font_5.c
+ * Opts: --font cloveian5px.ttf --size 16 --format lvgl --bpp 1 --range 0x20-0x7F --no-compress -o hid_font_5.c
  ******************************************************************************/
 
-#ifdef LV_LVGL_H_INCLUDE_SIMPLE
 #include "lvgl.h"
-#else
-#include "lvgl.h"
-#endif
 
 #ifndef HID_FONT_5
 #define HID_FONT_5 1
@@ -315,7 +311,7 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
 
 static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
-    {.bitmap_index = 0, .adv_w = 80, .box_w = 1, .box_h = 1, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 0, .adv_w = 16, .box_w = 1, .box_h = 1, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 1, .adv_w = 32, .box_w = 1, .box_h = 5, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 2, .adv_w = 48, .box_w = 2, .box_h = 2, .ofs_x = 0, .ofs_y = 3},
     {.bitmap_index = 3, .adv_w = 96, .box_w = 5, .box_h = 5, .ofs_x = 0, .ofs_y = 0},
@@ -395,7 +391,7 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 158, .adv_w = 96, .box_w = 5, .box_h = 4, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 161, .adv_w = 64, .box_w = 3, .box_h = 4, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 163, .adv_w = 64, .box_w = 3, .box_h = 4, .ofs_x = 0, .ofs_y = 0},
-    {.bitmap_index = 165, .adv_w = 64, .box_w = 3, .box_h = 5, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 165, .adv_w = 64, .box_w = 3, .box_h = 5, .ofs_x = 0, .ofs_y = -2},
     {.bitmap_index = 167, .adv_w = 80, .box_w = 4, .box_h = 5, .ofs_x = 0, .ofs_y = -2},
     {.bitmap_index = 170, .adv_w = 64, .box_w = 3, .box_h = 4, .ofs_x = 0, .ofs_y = 0},
     {.bitmap_index = 172, .adv_w = 64, .box_w = 3, .box_h = 4, .ofs_x = 0, .ofs_y = 0},

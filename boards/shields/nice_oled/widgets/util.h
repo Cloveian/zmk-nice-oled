@@ -53,6 +53,12 @@ struct status_state {
     IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
     char media_player[33];
 #endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    char media_artist[22];
+    uint8_t media_play_status;    // 0=stopped, 1=playing, 2=paused
+    uint16_t media_total_time;    // seconds
+    uint16_t media_position_snap; // position at last extended event, seconds
+#endif
 #endif
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED)
     uint8_t mod_state;

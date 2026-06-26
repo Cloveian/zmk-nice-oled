@@ -15,6 +15,7 @@ ZMK_EVENT_IMPL(spotify_notification);
 #endif
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
 ZMK_EVENT_IMPL(media_player_linux_notification);
+ZMK_EVENT_IMPL(media_extended_notification);
 #endif
 #ifdef CONFIG_NICE_OLED_WIDGET_RAW_HID_LAYOUT
 ZMK_EVENT_IMPL(layout_notification);
@@ -30,6 +31,7 @@ typedef enum {
 #endif
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
     _MEDIA_PLAYER_LINUX = 0xB0,
+    _MEDIA_EXTENDED = 0xB1,
 #endif
 } hid_data_type;
 
@@ -111,6 +113,17 @@ static void process_raw_hid_data(uint8_t *data) {
         memcpy(notification.media_player, &data[1], sizeof(notification.media_player) - 1);
         notification.media_player[sizeof(notification.media_player) - 1] = '\0';
         raise_media_player_linux_notification(notification);
+        break;
+    }
+    case _MEDIA_EXTENDED: {
+        struct media_extended_notification notification = {0};
+        notification.total_time  = (uint16_t)data[1] | ((uint16_t)data[2] << 8);
+        notification.position    = (uint16_t)data[3] | ((uint16_t)data[4] << 8);
+        notification.play_status = data[5];
+        uint8_t artist_len = MIN(data[6], 21);
+        memcpy(notification.artist, &data[7], artist_len);
+        notification.artist[artist_len] = '\0';
+        raise_media_extended_notification(notification);
         break;
     }
 #endif
