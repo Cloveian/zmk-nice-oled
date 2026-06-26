@@ -35,6 +35,13 @@ struct spotify_notification {
 ZMK_EVENT_DECLARE(spotify_notification);
 #endif
 
+#ifdef CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX
+struct media_player_linux_notification {
+    char media_player[33];
+};
+ZMK_EVENT_DECLARE(media_player_linux_notification);
+#endif
+
 #ifdef CONFIG_NICE_OLED_WIDGET_RAW_HID_LAYOUT
 struct layout_notification {
     uint8_t value;

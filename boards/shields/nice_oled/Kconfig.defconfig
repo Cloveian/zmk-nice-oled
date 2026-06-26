@@ -385,6 +385,46 @@ config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS
     Enable the Media Player widget, which displays song info received
     via RAW HID from the host computer.
 
+# CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX
+config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX
+    bool "nice!OLED Linux Media Player Widget"
+    default n
+    help
+    Enable the Media Player widget for Linux hosts. Receives a compact
+    track title via HID byte 0xB0 (MediaPlayerLinux) from the companion app.
+
+config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL
+    bool "Scroll media player text when it exceeds display width"
+    default n
+    depends on NICE_OLED_ON
+    help
+      When the media title is wider than the display, scroll it pixel by
+      pixel: pause at the start, scroll to the end, pause, then jump back.
+
+if NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL
+
+config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_SPEED_MS
+    int "Scroll speed in ms per pixel"
+    default 80
+
+config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS
+    int "Pause at start before scrolling begins (ms)"
+    default 1500
+
+config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_END_PAUSE_MS
+    int "Pause at end before jumping back to start (ms)"
+    default 1000
+
+endif # NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL
+
+config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE
+    int "Font size for media player text (px)"
+    default 7
+    depends on NICE_OLED_ON
+    help
+      Pixel height of the font used for the media player line. Follows the
+      same hid_font_N naming convention as FONT_SIZE. Defaults to 7.
+
 config NICE_OLED_WIDGET_RAW_HID_FONT_SIZE
     int "Font size for RAW HID display (px)"
     default 7
