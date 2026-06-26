@@ -40,6 +40,14 @@ struct media_player_linux_notification {
     char media_player[33];
 };
 ZMK_EVENT_DECLARE(media_player_linux_notification);
+
+struct media_extended_notification {
+    uint16_t total_time;    // seconds
+    uint16_t position;      // seconds at event time
+    uint8_t play_status;    // 0=stopped, 1=playing, 2=paused
+    char artist[22];        // up to 21 bytes + null
+};
+ZMK_EVENT_DECLARE(media_extended_notification);
 #endif
 
 #ifdef CONFIG_NICE_OLED_WIDGET_RAW_HID_LAYOUT

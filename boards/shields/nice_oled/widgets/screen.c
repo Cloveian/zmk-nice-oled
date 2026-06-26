@@ -202,7 +202,7 @@ static void draw_battery_text(lv_obj_t *canvas, const struct status_state *state
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
 
 //  Declaración adelantada (Forward Declaration) para draw_canvas
-static void draw_canvas(lv_obj_t *widget, lv_color_t cbuf[], const struct status_state *state);
+static void draw_canvas(struct zmk_widget_screen *w);
 //  Fin Declaración adelantada
 
 /**
@@ -519,7 +519,7 @@ static void set_mods_status(struct zmk_widget_screen *widget,
     // Obtiene el estado actual de los modificadores directamente
     widget->state.mod_state = zmk_hid_get_explicit_mods();
     // Vuelve a dibujar todo el canvas para reflejar el cambio
-    draw_canvas(widget->obj, widget->cbuf, &widget->state);
+    draw_canvas(widget);
 #endif
 }
 
@@ -555,25 +555,8 @@ ZMK_SUBSCRIPTION(widget_mods_status, zmk_keycode_state_changed);
 
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID)
 
-// Función para dibujar el estado de Raw HID en el canvas principal
-
-static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state) {
-
-#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED_SYMBOL_VERTICAL) ||              \
-    IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED_ONE_LINE_VERTICAL)
-
 #define DRAW_HID_STATUS_TEXT_ALIGN LV_TEXT_ALIGN_LEFT
 
-#else // IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED_SYMBOL_VERTICAL) ||
-      // IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED_ONE_LINE_VERTICAL)
-#define DRAW_HID_STATUS_TEXT_ALIGN LV_TEXT_ALIGN_LEFT
-
-#endif // IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED_SYMBOL_VERTICAL) ||
-       // IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED_ONE_LINE_VERTICAL)
-
-    // lv_font_unscii_8
-    // #define DRAW_HID_STATUS_FONTS \ (IS_ENABLED(CONFIG_NICE_EPAPER_ON) ? &lv_font_montserrat_14 :
-    // &pixel_operator_mono_12)
 #if IS_ENABLED(CONFIG_NICE_EPAPER_ON)
 #define DRAW_HID_STATUS_FONTS &lv_font_montserrat_14
 #elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 5
@@ -586,6 +569,183 @@ static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state) 
 #define DRAW_HID_STATUS_FONTS &pixel_operator_mono_12
 #endif
 
+#if IS_ENABLED(CONFIG_NICE_EPAPER_ON)
+#define DRAW_HID_MEDIA_FONTS &lv_font_montserrat_14
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE == 5
+#define DRAW_HID_MEDIA_FONTS &hid_font_5
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE == 7
+#define DRAW_HID_MEDIA_FONTS &hid_font_7
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE == 8
+#define DRAW_HID_MEDIA_FONTS &hid_font_8
+#else
+#define DRAW_HID_MEDIA_FONTS &pixel_operator_mono_12
+#endif
+
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+#define MEDIA_SCROLL_START_PAUSE 0
+#define MEDIA_SCROLL_SCROLLING   1
+#define MEDIA_SCROLL_END_PAUSE   2
+
+/* Temp buffer for the 32×32 media canvas rotation — same pattern as rotate_canvas. */
+static lv_color_t media_cbuf_tmp[32 * 32];
+
+/* Draw the current media text at scroll offset into the small 32×32 portrait canvas,
+ * then rotate it to landscape — same as rotate_canvas but only for this small region.
+ * LVGL marks only the 32×32 canvas dirty, so only that column range is flushed to the
+ * SSD1306 (~128 bytes vs 512 for a full redraw). */
+static void draw_media_canvas(struct zmk_widget_screen *w) {
+    lv_obj_t *canvas = w->media_canvas;
+
+    lv_draw_rect_dsc_t bg_dsc;
+    init_rect_dsc(&bg_dsc, LVGL_BACKGROUND);
+    lv_canvas_draw_rect(canvas, 0, 0, 32, 32, &bg_dsc);
+
+    lv_draw_label_dsc_t label_dsc;
+    init_label_dsc(&label_dsc, LVGL_FOREGROUND, DRAW_HID_MEDIA_FONTS, LV_TEXT_ALIGN_LEFT);
+
+    lv_draw_line_dsc_t line_dsc;
+    init_line_dsc(&line_dsc, LVGL_FOREGROUND, 1);
+
+    // Top border
+    lv_point_t top_pts[] = {{0, 0}, {31, 0}};
+    lv_canvas_draw_line(canvas, top_pts, 2, &line_dsc);
+
+    // "Media" header (y=2, max_w=27 leaves room for icon at x=28)
+    lv_canvas_draw_text(canvas, 0, 2, 27, &label_dsc, "Media");
+
+    // Title with scroll offset (y=8)
+    lv_canvas_draw_text(canvas, -w->media_scroll_offset, 8, LV_COORD_MAX, &label_dsc,
+                        w->state.media_player);
+
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    // Artist (y=14)
+    lv_canvas_draw_text(canvas, 0, 14, 32, &label_dsc, w->state.media_artist);
+
+    // "/" separator pixels (x=14-16, y=21-25)
+    lv_draw_rect_dsc_t px_dsc;
+    init_rect_dsc(&px_dsc, LVGL_FOREGROUND);
+    lv_canvas_draw_rect(canvas, 16, 21, 1, 1, &px_dsc);
+    lv_canvas_draw_rect(canvas, 16, 22, 1, 1, &px_dsc);
+    lv_canvas_draw_rect(canvas, 15, 23, 1, 1, &px_dsc);
+    lv_canvas_draw_rect(canvas, 14, 24, 1, 1, &px_dsc);
+    lv_canvas_draw_rect(canvas, 14, 25, 1, 1, &px_dsc);
+
+    // Current time (y=21, max_w=13 to stay left of "/")
+    char cur_buf[8];
+    uint16_t cur_sec = w->state.media_position_snap;
+    if (w->state.media_play_status == 1 && w->media_position_ts > 0) {
+        int64_t elapsed = (k_uptime_get() - w->media_position_ts) / 1000;
+        uint32_t advanced = (uint32_t)cur_sec + (uint32_t)elapsed;
+        cur_sec = (uint16_t)MIN(advanced, (uint32_t)w->state.media_total_time);
+    }
+    snprintf(cur_buf, sizeof(cur_buf), "%u:%02u", cur_sec / 60u, cur_sec % 60u);
+    lv_canvas_draw_text(canvas, 0, 21, 13, &label_dsc, cur_buf);
+
+    // Total time (y=21, x=17, right of "/")
+    char tot_buf[8];
+    snprintf(tot_buf, sizeof(tot_buf), "%u:%02u",
+             w->state.media_total_time / 60u, w->state.media_total_time % 60u);
+    lv_canvas_draw_text(canvas, 17, 21, 15, &label_dsc, tot_buf);
+
+    // Play/pause icon (x=28-30, y=2-6)
+    lv_draw_rect_dsc_t icon_dsc;
+    init_rect_dsc(&icon_dsc, LVGL_FOREGROUND);
+    if (w->state.media_play_status == 2) {
+        // Pause: two 1×5 bars
+        lv_canvas_draw_rect(canvas, 28, 2, 1, 5, &icon_dsc);
+        lv_canvas_draw_rect(canvas, 30, 2, 1, 5, &icon_dsc);
+    } else if (w->state.media_play_status == 1) {
+        // Play: right-pointing triangle
+        lv_canvas_draw_rect(canvas, 28, 2, 1, 1, &icon_dsc);
+        lv_canvas_draw_rect(canvas, 28, 3, 2, 1, &icon_dsc);
+        lv_canvas_draw_rect(canvas, 28, 4, 3, 1, &icon_dsc);
+        lv_canvas_draw_rect(canvas, 28, 5, 2, 1, &icon_dsc);
+        lv_canvas_draw_rect(canvas, 28, 6, 1, 1, &icon_dsc);
+    }
+#endif /* CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX */
+
+    // Separator line
+    lv_point_t sep_pts[] = {{0, 28}, {31, 28}};
+    lv_canvas_draw_line(canvas, sep_pts, 2, &line_dsc);
+
+    // Bottom border
+    lv_point_t bot_pts[] = {{0, 31}, {31, 31}};
+    lv_canvas_draw_line(canvas, bot_pts, 2, &line_dsc);
+
+    memcpy(media_cbuf_tmp, w->media_cbuf, sizeof(media_cbuf_tmp));
+
+    lv_img_dsc_t img;
+    img.data = (void *)media_cbuf_tmp;
+    img.header.cf = LV_IMG_CF_TRUE_COLOR;
+    img.header.w = 32;
+    img.header.h = 32;
+
+    lv_canvas_fill_bg(canvas, LVGL_BACKGROUND, LV_OPA_COVER);
+    lv_canvas_transform(canvas, &img, 900, LV_IMG_ZOOM_NONE, -1, 0, 16, 16, false);
+}
+
+static void media_scroll_timer_cb(lv_timer_t *timer) {
+    struct zmk_widget_screen *w = (struct zmk_widget_screen *)timer->user_data;
+    lv_point_t sz;
+    lv_txt_get_size(&sz, w->state.media_player, DRAW_HID_MEDIA_FONTS, 0, 0,
+                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    int16_t max_offset = sz.x - 32;
+    if (max_offset <= 0) {
+        w->media_scroll_offset = 0;
+        w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
+        lv_timer_del(timer);
+        w->media_scroll_timer = NULL;
+        draw_media_canvas(w);
+        return;
+    }
+    switch (w->media_scroll_phase) {
+    case MEDIA_SCROLL_START_PAUSE:
+        w->media_scroll_phase = MEDIA_SCROLL_SCROLLING;
+        lv_timer_set_period(timer, CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_SPEED_MS);
+        break;
+    case MEDIA_SCROLL_SCROLLING:
+        if (++w->media_scroll_offset >= max_offset) {
+            w->media_scroll_offset = max_offset;
+            w->media_scroll_phase = MEDIA_SCROLL_END_PAUSE;
+            lv_timer_set_period(timer, CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_END_PAUSE_MS);
+        }
+        break;
+    case MEDIA_SCROLL_END_PAUSE:
+        w->media_scroll_offset = 0;
+        w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
+        lv_timer_set_period(timer, CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS);
+        break;
+    }
+    draw_media_canvas(w);
+}
+
+static void media_scroll_reset(struct zmk_widget_screen *w) {
+    w->media_scroll_offset = 0;
+    w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
+    if (w->media_scroll_timer != NULL) {
+        lv_timer_set_period(w->media_scroll_timer,
+            CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS);
+        lv_timer_reset(w->media_scroll_timer);
+    } else {
+        w->media_scroll_timer = lv_timer_create(media_scroll_timer_cb,
+            CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS, w);
+    }
+    draw_media_canvas(w);
+}
+
+static void media_scroll_stop(struct zmk_widget_screen *w) {
+    if (w->media_scroll_timer != NULL) {
+        lv_timer_del(w->media_scroll_timer);
+        w->media_scroll_timer = NULL;
+    }
+    w->media_scroll_offset = 0;
+    lv_canvas_fill_bg(w->media_canvas, LVGL_BACKGROUND, LV_OPA_COVER);
+}
+#endif /* CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL */
+
+static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state,
+                            int16_t media_scroll_offset) {
+
     lv_draw_rect_dsc_t rect_black_dsc;
     init_rect_dsc(&rect_black_dsc, LVGL_BACKGROUND);
     lv_draw_label_dsc_t label_time;
@@ -597,6 +757,13 @@ static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state) 
     lv_draw_label_dsc_t label_volume;
     init_label_dsc(&label_volume, LVGL_FOREGROUND, DRAW_HID_STATUS_FONTS,
                    DRAW_HID_STATUS_TEXT_ALIGN);
+#if (IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS) || \
+     IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)) && \
+    !IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+    lv_draw_label_dsc_t label_media;
+    init_label_dsc(&label_media, LVGL_FOREGROUND, DRAW_HID_MEDIA_FONTS,
+                   DRAW_HID_STATUS_TEXT_ALIGN);
+#endif
 
     //  Área de dibujo - base position for fallback
     int hid_area_x = CONFIG_NICE_OLED_WIDGET_RAW_HID_CUSTOM_X;
@@ -670,11 +837,13 @@ static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state) 
                             hid_area_width, &label_volume, text_buffer);
 #endif
 
-#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS)
-        // Dibujar Spotify/Media Player
-        lv_canvas_draw_text(canvas, CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_CUSTOM_X,
+#if (IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS) || \
+     IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)) && \
+    !IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        lv_canvas_draw_text(canvas,
+                            CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_CUSTOM_X - media_scroll_offset,
                             CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_CUSTOM_Y,
-                            hid_area_width, &label_volume, state->media_player);
+                            LV_COORD_MAX, &label_media, state->media_player);
 #endif
 
     } else {
@@ -713,12 +882,15 @@ static struct is_connected_notification get_is_hid_connected(const zmk_event_t *
 }
 
 static void hid_is_connected_update_cb(struct is_connected_notification is_connected) {
-    // Actualiza el estado en *todos* los widgets de pantalla y redibuja
     struct zmk_widget_screen *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         widget->state.is_connected = is_connected.value;
-        // Llama a la función principal de dibujo para actualizar toda la pantalla
-        draw_canvas(widget->obj, widget->cbuf, &widget->state);
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        if (!is_connected.value) {
+            media_scroll_stop(widget);
+        }
+#endif
+        draw_canvas(widget);
     }
 }
 
@@ -741,7 +913,7 @@ static void hid_time_update_cb(struct time_notification time) {
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         widget->state.hour = time.hour;
         widget->state.minute = time.minute;
-        draw_canvas(widget->obj, widget->cbuf, &widget->state);
+        draw_canvas(widget);
     }
 }
 
@@ -763,7 +935,7 @@ static void hid_volume_update_cb(struct volume_notification volume) {
     struct zmk_widget_screen *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         widget->state.volume = volume.value;
-        draw_canvas(widget->obj, widget->cbuf, &widget->state);
+        draw_canvas(widget);
     }
 }
 
@@ -786,7 +958,7 @@ static void hid_layout_update_cb(struct layout_notification layout) {
     struct zmk_widget_screen *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         widget->state.layout = layout.value;
-        draw_canvas(widget->obj, widget->cbuf, &widget->state);
+        draw_canvas(widget);
     }
 }
 
@@ -804,7 +976,7 @@ static void weather_status_update_cb(struct weather_notification weather) {
     struct zmk_widget_screen *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         widget->state.temperature = weather.temperature;
-        draw_canvas(widget->obj, widget->cbuf, &widget->state);
+        draw_canvas(widget);
     }
 }
 
@@ -829,7 +1001,10 @@ static void spotify_status_update_cb(struct spotify_notification spotify) {
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
         memcpy(widget->state.media_player, spotify.media_player,
                sizeof(widget->state.media_player));
-        draw_canvas(widget->obj, widget->cbuf, &widget->state);
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        media_scroll_reset(widget);
+#endif
+        draw_canvas(widget);
     }
 }
 
@@ -847,6 +1022,62 @@ ZMK_SUBSCRIPTION(widget_spotify_status, spotify_notification);
 
 #endif
 
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+
+static void media_player_linux_update_cb(struct media_player_linux_notification notif) {
+    struct zmk_widget_screen *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        memcpy(widget->state.media_player, notif.media_player,
+               sizeof(notif.media_player));
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        media_scroll_reset(widget);
+#endif
+        draw_canvas(widget);
+    }
+}
+
+static struct media_player_linux_notification media_player_linux_get_state(const zmk_event_t *eh) {
+    const struct media_player_linux_notification *ev = as_media_player_linux_notification(eh);
+    if (ev == NULL) {
+        return (struct media_player_linux_notification){.media_player = ""};
+    }
+    return *ev;
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_media_player_linux, struct media_player_linux_notification,
+                            media_player_linux_update_cb, media_player_linux_get_state);
+ZMK_SUBSCRIPTION(widget_media_player_linux, media_player_linux_notification);
+
+static void media_extended_update_cb(struct media_extended_notification notif) {
+    struct zmk_widget_screen *widget;
+    SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+        widget->state.media_total_time    = notif.total_time;
+        widget->state.media_position_snap = notif.position;
+        widget->state.media_play_status   = notif.play_status;
+        strncpy(widget->state.media_artist, notif.artist,
+                sizeof(widget->state.media_artist) - 1);
+        widget->state.media_artist[sizeof(widget->state.media_artist) - 1] = '\0';
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        widget->media_position_ts = k_uptime_get();
+        draw_media_canvas(widget);
+#endif
+    }
+}
+
+static struct media_extended_notification media_extended_get_state(const zmk_event_t *eh) {
+    const struct media_extended_notification *ev = as_media_extended_notification(eh);
+    if (ev == NULL) {
+        return (struct media_extended_notification){0};
+    }
+    return *ev;
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_media_extended, struct media_extended_notification,
+                            media_extended_update_cb, media_extended_get_state);
+ZMK_SUBSCRIPTION(widget_media_extended, media_extended_notification);
+
+#endif
+
 /**
  * hid indicators
  **/
@@ -860,8 +1091,9 @@ static struct zmk_widget_hid_indicators hid_indicators_widget;
  * Draw canvas
  **/
 
-static void draw_canvas(lv_obj_t *widget, lv_color_t cbuf[], const struct status_state *state) {
-    lv_obj_t *canvas = lv_obj_get_child(widget, 0);
+static void draw_canvas(struct zmk_widget_screen *w) {
+    lv_obj_t *canvas = lv_obj_get_child(w->obj, 0);
+    const struct status_state *state = &w->state;
 
     // Draw widgets
     draw_background(canvas);
@@ -887,8 +1119,13 @@ static void draw_canvas(lv_obj_t *widget, lv_color_t cbuf[], const struct status
 #endif
 
 #ifdef CONFIG_NICE_OLED_WIDGET_RAW_HID
-    draw_hid_status(canvas, state);
-
+    draw_hid_status(canvas, state,
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        w->media_scroll_offset
+#else
+        0
+#endif
+    );
 #endif // CONFIG_NICE_OLED_WIDGET_RAW_HID
 
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED)
@@ -897,7 +1134,7 @@ static void draw_canvas(lv_obj_t *widget, lv_color_t cbuf[], const struct status
 #endif // <-- NUEVO
 
     // Rotate for horizontal display
-    rotate_canvas(canvas, cbuf);
+    rotate_canvas(canvas, w->cbuf);
 }
 
 /**
@@ -916,7 +1153,7 @@ static void set_battery_status(struct zmk_widget_screen *widget,
 
     widget->state.battery = state.level;
 
-    draw_canvas(widget->obj, widget->cbuf, &widget->state);
+    draw_canvas(widget);
 }
 
 static void battery_status_update_cb(struct battery_status_state state) {
@@ -957,7 +1194,7 @@ static void set_battery_status(struct zmk_widget_screen *widget, struct battery_
     widget->state.batteries[state.source].level = state.level;
     widget->state.batteries[state.source].usb_present = state.usb_present;
 
-    draw_canvas(widget->obj, widget->cbuf, &widget->state);
+    draw_canvas(widget);
 }
 
 void battery_status_update_cb(struct battery_state state) {
@@ -1025,7 +1262,7 @@ static void set_layer_status(struct zmk_widget_screen *widget, struct layer_stat
     widget->state.layer_index = state.index;
     widget->state.layer_label = state.label;
 
-    draw_canvas(widget->obj, widget->cbuf, &widget->state);
+    draw_canvas(widget);
 }
 
 static void layer_status_update_cb(struct layer_status_state state) {
@@ -1055,7 +1292,7 @@ static void set_output_status(struct zmk_widget_screen *widget,
     widget->state.active_profile_connected = state->active_profile_connected;
     widget->state.active_profile_bonded = state->active_profile_bonded;
 
-    draw_canvas(widget->obj, widget->cbuf, &widget->state);
+    draw_canvas(widget);
 }
 
 static void output_status_update_cb(struct output_status_state state) {
@@ -1094,7 +1331,7 @@ static void set_wpm_status(struct zmk_widget_screen *widget, struct wpm_status_s
     }
     widget->state.wpm[9] = state.wpm;
 
-    draw_canvas(widget->obj, widget->cbuf, &widget->state);
+    draw_canvas(widget);
 }
 
 static void wpm_status_update_cb(struct wpm_status_state state) {
@@ -1184,6 +1421,10 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS)
     widget_spotify_status_init();
 #endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    widget_media_player_linux_init();
+    widget_media_extended_init();
+#endif
 
     // Inicializa el estado HID a "desconectado" para el primer dibujo
     // Nota: Los valores iniciales (hora, vol, etc.) se obtendrán cuando lleguen los primeros
@@ -1194,8 +1435,33 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_WEATHER)
         w->state.temperature = 127; // Estado inicial para el clima (N/A)
 #endif
-#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS)
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS) || \
+    IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
         w->state.media_player[0] = '\0';
+#endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+        w->state.media_artist[0] = '\0';
+        w->state.media_play_status = 0;
+        w->state.media_total_time = 0;
+        w->state.media_position_snap = 0;
+#endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        w->media_scroll_offset = 0;
+        w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
+        w->media_scroll_timer = NULL;
+        w->media_position_ts = 0;
+
+        /* Small 32×32 canvas for the media text row. Positioned in LVGL landscape so that
+         * portrait y=CUSTOM_Y aligns with its right edge after the same 90° CCW rotation
+         * used by rotate_canvas. Only this canvas is dirty on scroll ticks, so LVGL flushes
+         * ~128 bytes to the SSD1306 instead of the full 512 bytes. */
+        lv_obj_t *media_canvas = lv_canvas_create(w->obj);
+        lv_canvas_set_buffer(media_canvas, w->media_cbuf, 32, 32, LV_IMG_CF_TRUE_COLOR);
+        lv_obj_set_pos(media_canvas,
+            CANVAS_HEIGHT - 32 - CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_CUSTOM_Y,
+            0);
+        lv_canvas_fill_bg(media_canvas, LVGL_BACKGROUND, LV_OPA_COVER);
+        w->media_canvas = media_canvas;
 #endif
         // Otros campos HID se inicializarán a 0 o sus valores por defecto
     }
