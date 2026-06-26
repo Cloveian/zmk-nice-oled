@@ -13,6 +13,9 @@ ZMK_EVENT_IMPL(weather_notification); // NUEVO
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS)
 ZMK_EVENT_IMPL(spotify_notification);
 #endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+ZMK_EVENT_IMPL(media_player_linux_notification);
+#endif
 #ifdef CONFIG_NICE_OLED_WIDGET_RAW_HID_LAYOUT
 ZMK_EVENT_IMPL(layout_notification);
 #endif
@@ -24,6 +27,9 @@ typedef enum {
     _WEATHER = 0xAF, // NUEVO
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS)
     _SPOTIFY = 0xAE,
+#endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    _MEDIA_PLAYER_LINUX = 0xB0,
 #endif
 } hid_data_type;
 
@@ -96,6 +102,15 @@ static void process_raw_hid_data(uint8_t *data) {
         memcpy(notification.media_player, &data[1], sizeof(notification.media_player));
         notification.media_player[sizeof(notification.media_player) - 1] = '\0';
         raise_spotify_notification(notification);
+        break;
+    }
+#endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    case _MEDIA_PLAYER_LINUX: {
+        struct media_player_linux_notification notification;
+        memcpy(notification.media_player, &data[1], sizeof(notification.media_player) - 1);
+        notification.media_player[sizeof(notification.media_player) - 1] = '\0';
+        raise_media_player_linux_notification(notification);
         break;
     }
 #endif

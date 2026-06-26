@@ -49,8 +49,9 @@ struct status_state {
     uint8_t volume;
     uint8_t layout;
     int8_t temperature;
-#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS)
-    char media_player[11];
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS) || \
+    IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    char media_player[33];
 #endif
 #endif
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MODIFIERS_INDICATORS_FIXED)
