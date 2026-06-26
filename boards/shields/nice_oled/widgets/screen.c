@@ -576,9 +576,15 @@ static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state) 
     // &pixel_operator_mono_12)
 #if IS_ENABLED(CONFIG_NICE_EPAPER_ON)
 #define DRAW_HID_STATUS_FONTS &lv_font_montserrat_14
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 5
+#define DRAW_HID_STATUS_FONTS &hid_font_5
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 7
+#define DRAW_HID_STATUS_FONTS &hid_font_7
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 8
+#define DRAW_HID_STATUS_FONTS &hid_font_8
 #else
 #define DRAW_HID_STATUS_FONTS &pixel_operator_mono_12
-#endif // IS_ENABLED(CONFIG_NICE_EPAPER_ON)
+#endif
 
     lv_draw_rect_dsc_t rect_black_dsc;
     init_rect_dsc(&rect_black_dsc, LVGL_BACKGROUND);

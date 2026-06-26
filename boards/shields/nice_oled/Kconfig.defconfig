@@ -385,6 +385,15 @@ config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SPOTIFY_MACOS
     Enable the Media Player widget, which displays song info received
     via RAW HID from the host computer.
 
+config NICE_OLED_WIDGET_RAW_HID_FONT_SIZE
+    int "Font size for RAW HID display (px)"
+    default 7
+    depends on NICE_OLED_ON
+    help
+      Pixel height of the font used for the RAW HID status area (time,
+      weather, media player). A font file named hid_font_N.c must exist
+      in src/fonts/ with an lv_font_t symbol named hid_font_N, where N
+      matches this value. Sizes 5 and 7 (cloveian5px/7px) are provided.
 
 endif # NICE_OLED_WIDGET_RAW_HID }}}
 ### NICE OLED WIDGET MODIFIERS INDICATORS {{{
