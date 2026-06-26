@@ -586,6 +586,14 @@ ZMK_SUBSCRIPTION(widget_mods_status, zmk_keycode_state_changed);
 #define MEDIA_SCROLL_SCROLLING   1
 #define MEDIA_SCROLL_END_PAUSE   2
 
+/* Pause durations expressed as tick counts at SCROLL_SPEED_MS per tick. */
+#define MEDIA_SCROLL_START_PAUSE_TICKS \
+    (CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS / \
+     CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_SPEED_MS)
+#define MEDIA_SCROLL_END_PAUSE_TICKS \
+    (CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_END_PAUSE_MS / \
+     CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_SPEED_MS)
+
 /* Temp buffer for the 32×32 media canvas rotation — same pattern as rotate_canvas. */
 static lv_color_t media_cbuf_tmp[32 * 32];
 
@@ -741,51 +749,48 @@ static void media_scroll_timer_cb(lv_timer_t *timer) {
     lv_txt_get_size(&sz, w->state.media_artist, DRAW_HID_MEDIA_FONTS, 0, 0,
                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     int16_t artist_max = sz.x - 32;
-    if (artist_max > max_offset) {
-        max_offset = artist_max;
-    }
+    if (artist_max > max_offset) max_offset = artist_max;
 #endif
-    if (max_offset <= 0) {
-        w->media_scroll_offset = 0;
-        w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
-        lv_timer_del(timer);
-        w->media_scroll_timer = NULL;
-        draw_media_canvas(w);
-        return;
-    }
-    switch (w->media_scroll_phase) {
-    case MEDIA_SCROLL_START_PAUSE:
-        w->media_scroll_phase = MEDIA_SCROLL_SCROLLING;
-        lv_timer_set_period(timer, CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_SPEED_MS);
-        break;
-    case MEDIA_SCROLL_SCROLLING:
-        if (++w->media_scroll_offset >= max_offset) {
-            w->media_scroll_offset = max_offset;
-            w->media_scroll_phase = MEDIA_SCROLL_END_PAUSE;
-            lv_timer_set_period(timer, CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_END_PAUSE_MS);
+    if (max_offset > 0) {
+        switch (w->media_scroll_phase) {
+        case MEDIA_SCROLL_START_PAUSE:
+            if (++w->media_scroll_pause_ticks >= MEDIA_SCROLL_START_PAUSE_TICKS) {
+                w->media_scroll_pause_ticks = 0;
+                w->media_scroll_phase = MEDIA_SCROLL_SCROLLING;
+            }
+            break;
+        case MEDIA_SCROLL_SCROLLING:
+            if (++w->media_scroll_offset >= max_offset) {
+                w->media_scroll_offset = max_offset;
+                w->media_scroll_pause_ticks = 0;
+                w->media_scroll_phase = MEDIA_SCROLL_END_PAUSE;
+            }
+            break;
+        case MEDIA_SCROLL_END_PAUSE:
+            if (++w->media_scroll_pause_ticks >= MEDIA_SCROLL_END_PAUSE_TICKS) {
+                w->media_scroll_offset = 0;
+                w->media_scroll_pause_ticks = 0;
+                w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
+            }
+            break;
         }
-        break;
-    case MEDIA_SCROLL_END_PAUSE:
+    } else {
         w->media_scroll_offset = 0;
-        w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
-        lv_timer_set_period(timer, CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS);
-        break;
     }
     draw_media_canvas(w);
+}
+
+static void media_active_start(struct zmk_widget_screen *w) {
+    if (w->media_scroll_timer == NULL) {
+        w->media_scroll_timer = lv_timer_create(media_scroll_timer_cb,
+            CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_SPEED_MS, w);
+    }
 }
 
 static void media_scroll_reset(struct zmk_widget_screen *w) {
     w->media_scroll_offset = 0;
     w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
-    if (w->media_scroll_timer != NULL) {
-        lv_timer_set_period(w->media_scroll_timer,
-            CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS);
-        lv_timer_reset(w->media_scroll_timer);
-    } else {
-        w->media_scroll_timer = lv_timer_create(media_scroll_timer_cb,
-            CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_START_PAUSE_MS, w);
-    }
-    draw_media_canvas(w);
+    w->media_scroll_pause_ticks = 0;
 }
 
 static void media_scroll_stop(struct zmk_widget_screen *w) {
@@ -795,24 +800,6 @@ static void media_scroll_stop(struct zmk_widget_screen *w) {
     }
     w->media_scroll_offset = 0;
     lv_canvas_fill_bg(w->media_canvas, LVGL_BACKGROUND, LV_OPA_COVER);
-}
-
-static void media_pos_timer_cb(lv_timer_t *timer) {
-    struct zmk_widget_screen *w = (struct zmk_widget_screen *)timer->user_data;
-    draw_media_canvas(w);
-}
-
-static void media_pos_timer_start(struct zmk_widget_screen *w) {
-    if (w->media_pos_timer == NULL) {
-        w->media_pos_timer = lv_timer_create(media_pos_timer_cb, 1000, w);
-    }
-}
-
-static void media_pos_timer_stop(struct zmk_widget_screen *w) {
-    if (w->media_pos_timer != NULL) {
-        lv_timer_del(w->media_pos_timer);
-        w->media_pos_timer = NULL;
-    }
 }
 #endif /* CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL */
 
@@ -961,6 +948,9 @@ static void hid_is_connected_update_cb(struct is_connected_notification is_conne
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
         if (!is_connected.value) {
             media_scroll_stop(widget);
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
+            lv_obj_add_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+#endif
         }
 #endif
         draw_canvas(widget);
@@ -1137,15 +1127,30 @@ static void media_extended_update_cb(struct media_extended_notification notif) {
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
         widget->media_position_ts = k_uptime_get();
         if (notif.play_status == 1) {
-            media_pos_timer_start(widget);
+            // Playing: show canvas and start scroll/update timer
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
+            lv_obj_clear_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+#endif
+            media_active_start(widget);
         } else {
-            media_pos_timer_stop(widget);
+            // Paused or stopped: stop timer
+            if (widget->media_scroll_timer != NULL) {
+                lv_timer_del(widget->media_scroll_timer);
+                widget->media_scroll_timer = NULL;
+            }
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
+            if (notif.play_status == 0) {
+                lv_obj_add_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+            } else {
+                // Paused: keep visible but frozen
+                lv_obj_clear_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+            }
+#endif
         }
         if (artist_changed) {
             media_scroll_reset(widget);
-        } else {
-            draw_media_canvas(widget);
         }
+        draw_media_canvas(widget);
 #endif
     }
 }
@@ -1534,8 +1539,8 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
         w->media_scroll_offset = 0;
         w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
+        w->media_scroll_pause_ticks = 0;
         w->media_scroll_timer = NULL;
-        w->media_pos_timer = NULL;
         w->media_position_ts = 0;
 
         /* Small 32×32 canvas for the media text row. Positioned in LVGL landscape so that
@@ -1548,6 +1553,9 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
             CANVAS_HEIGHT - 32 - CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_CUSTOM_Y,
             0);
         lv_canvas_fill_bg(media_canvas, LVGL_BACKGROUND, LV_OPA_COVER);
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
+        lv_obj_add_flag(media_canvas, LV_OBJ_FLAG_HIDDEN);
+#endif
         w->media_canvas = media_canvas;
 #endif
         // Otros campos HID se inicializarán a 0 o sus valores por defecto

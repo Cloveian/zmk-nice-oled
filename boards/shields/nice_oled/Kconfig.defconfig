@@ -417,6 +417,16 @@ config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL_END_PAUSE_MS
 
 endif # NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL
 
+config NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK
+    bool "Hide media canvas when stopped or HID disconnected"
+    default n
+    depends on NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL
+    help
+      When enabled, the 32x32 media canvas is hidden while the media player
+      is stopped (status 0) or the HID companion app is disconnected.
+      The main canvas content (layer, WPM, etc.) shows through in its place.
+      When play or pause resumes, the media canvas reappears automatically.
+
 config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE
     int "Font size for media player text (px)"
     default 7
