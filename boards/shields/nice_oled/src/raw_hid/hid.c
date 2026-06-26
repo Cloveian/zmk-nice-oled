@@ -30,6 +30,7 @@ typedef enum {
     _SPOTIFY = 0xAE,
 #endif
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    _MEDIA_TITLE = 0xAD,
     _MEDIA_PLAYER_LINUX = 0xB0,
     _MEDIA_EXTENDED = 0xB1,
 #endif
@@ -108,6 +109,14 @@ static void process_raw_hid_data(uint8_t *data) {
     }
 #endif
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    case _MEDIA_TITLE: {
+        struct media_player_linux_notification notification = {0};
+        uint8_t title_len = MIN(data[1], sizeof(notification.media_player) - 1);
+        memcpy(notification.media_player, &data[2], title_len);
+        notification.media_player[title_len] = '\0';
+        raise_media_player_linux_notification(notification);
+        break;
+    }
     case _MEDIA_PLAYER_LINUX: {
         struct media_player_linux_notification notification;
         memcpy(notification.media_player, &data[1], sizeof(notification.media_player) - 1);
@@ -120,7 +129,7 @@ static void process_raw_hid_data(uint8_t *data) {
         notification.total_time  = (uint16_t)data[1] | ((uint16_t)data[2] << 8);
         notification.position    = (uint16_t)data[3] | ((uint16_t)data[4] << 8);
         notification.play_status = data[5];
-        uint8_t artist_len = MIN(data[6], 21);
+        uint8_t artist_len = MIN(data[6], 25);
         memcpy(notification.artist, &data[7], artist_len);
         notification.artist[artist_len] = '\0';
         raise_media_extended_notification(notification);
