@@ -594,6 +594,9 @@ static lv_color_t media_cbuf_tmp[32 * 32];
  * LVGL marks only the 32×32 canvas dirty, so only that column range is flushed to the
  * SSD1306 (~128 bytes vs 512 for a full redraw). */
 static void draw_media_canvas(struct zmk_widget_screen *w) {
+    if (w->media_canvas == NULL) {
+        return;
+    }
     lv_obj_t *canvas = w->media_canvas;
 
     lv_draw_rect_dsc_t bg_dsc;
@@ -610,16 +613,36 @@ static void draw_media_canvas(struct zmk_widget_screen *w) {
     lv_point_t top_pts[] = {{0, 0}, {31, 0}};
     lv_canvas_draw_line(canvas, top_pts, 2, &line_dsc);
 
-    // "Media" header (y=2, max_w=27 leaves room for icon at x=28)
-    lv_canvas_draw_text(canvas, 0, 2, 27, &label_dsc, "Media");
+    // Note icon: stem at (1,2)-(1,6), flag at (2,3), notehead at (0-1,5-6)
+    lv_draw_rect_dsc_t note_dsc;
+    init_rect_dsc(&note_dsc, LVGL_FOREGROUND);
+    lv_canvas_draw_rect(canvas, 1, 2, 1, 5, &note_dsc);
+    lv_canvas_draw_rect(canvas, 2, 3, 1, 1, &note_dsc);
+    lv_canvas_draw_rect(canvas, 0, 5, 2, 2, &note_dsc);
 
-    // Title with scroll offset (y=8)
-    lv_canvas_draw_text(canvas, -w->media_scroll_offset, 8, LV_COORD_MAX, &label_dsc,
-                        w->state.media_player);
+    // "Media" header (x=6, y=2, max_w=21 leaves room for icon at x=28)
+    lv_canvas_draw_text(canvas, 6, 2, 21, &label_dsc, "Media");
 
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    // Title (y=8)
+    {
+        lv_point_t tsz;
+        lv_txt_get_size(&tsz, w->state.media_player, DRAW_HID_MEDIA_FONTS, 0, 0,
+                        LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        int16_t t_scroll = (tsz.x > 32) ? MIN(w->media_scroll_offset, tsz.x - 32) : 0;
+        lv_canvas_draw_text(canvas, -t_scroll, 8, LV_COORD_MAX, &label_dsc,
+                            w->state.media_player);
+    }
+
     // Artist (y=14)
-    lv_canvas_draw_text(canvas, 0, 14, 32, &label_dsc, w->state.media_artist);
+    {
+        lv_point_t asz;
+        lv_txt_get_size(&asz, w->state.media_artist, DRAW_HID_MEDIA_FONTS, 0, 0,
+                        LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+        int16_t a_scroll = (asz.x > 32) ? MIN(w->media_scroll_offset, asz.x - 32) : 0;
+        lv_canvas_draw_text(canvas, -a_scroll, 14, LV_COORD_MAX, &label_dsc,
+                            w->state.media_artist);
+    }
 
     // "/" separator pixels (x=14-16, y=21-25)
     lv_draw_rect_dsc_t px_dsc;
@@ -690,6 +713,14 @@ static void media_scroll_timer_cb(lv_timer_t *timer) {
     lv_txt_get_size(&sz, w->state.media_player, DRAW_HID_MEDIA_FONTS, 0, 0,
                     LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     int16_t max_offset = sz.x - 32;
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
+    lv_txt_get_size(&sz, w->state.media_artist, DRAW_HID_MEDIA_FONTS, 0, 0,
+                    LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    int16_t artist_max = sz.x - 32;
+    if (artist_max > max_offset) {
+        max_offset = artist_max;
+    }
+#endif
     if (max_offset <= 0) {
         w->media_scroll_offset = 0;
         w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
@@ -1051,6 +1082,10 @@ ZMK_SUBSCRIPTION(widget_media_player_linux, media_player_linux_notification);
 static void media_extended_update_cb(struct media_extended_notification notif) {
     struct zmk_widget_screen *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
+        bool artist_changed = strncmp(widget->state.media_artist, notif.artist,
+                                      sizeof(widget->state.media_artist)) != 0;
+#endif
         widget->state.media_total_time    = notif.total_time;
         widget->state.media_position_snap = notif.position;
         widget->state.media_play_status   = notif.play_status;
@@ -1059,7 +1094,11 @@ static void media_extended_update_cb(struct media_extended_notification notif) {
         widget->state.media_artist[sizeof(widget->state.media_artist) - 1] = '\0';
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
         widget->media_position_ts = k_uptime_get();
-        draw_media_canvas(widget);
+        if (artist_changed) {
+            media_scroll_reset(widget);
+        } else {
+            draw_media_canvas(widget);
+        }
 #endif
     }
 }
