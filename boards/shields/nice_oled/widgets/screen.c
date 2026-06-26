@@ -653,7 +653,7 @@ static void draw_media_canvas(struct zmk_widget_screen *w) {
     lv_canvas_draw_rect(canvas, 14, 24, 1, 1, &px_dsc);
     lv_canvas_draw_rect(canvas, 14, 25, 1, 1, &px_dsc);
 
-    // Current time (y=21, max_w=13 to stay left of "/")
+    // Current time (y=21) — LV_COORD_MAX prevents colon from being a word-break
     char cur_buf[8];
     uint16_t cur_sec = w->state.media_position_snap;
     if (w->state.media_play_status == 1 && w->media_position_ts > 0) {
@@ -662,13 +662,13 @@ static void draw_media_canvas(struct zmk_widget_screen *w) {
         cur_sec = (uint16_t)MIN(advanced, (uint32_t)w->state.media_total_time);
     }
     snprintf(cur_buf, sizeof(cur_buf), "%u:%02u", cur_sec / 60u, cur_sec % 60u);
-    lv_canvas_draw_text(canvas, 0, 21, 13, &label_dsc, cur_buf);
+    lv_canvas_draw_text(canvas, 0, 21, LV_COORD_MAX, &label_dsc, cur_buf);
 
-    // Total time (y=21, x=17, right of "/")
+    // Total time (y=21, x=17)
     char tot_buf[8];
     snprintf(tot_buf, sizeof(tot_buf), "%u:%02u",
              w->state.media_total_time / 60u, w->state.media_total_time % 60u);
-    lv_canvas_draw_text(canvas, 17, 21, 15, &label_dsc, tot_buf);
+    lv_canvas_draw_text(canvas, 18, 21, LV_COORD_MAX, &label_dsc, tot_buf);
 
     // Play/pause icon (x=28-30, y=2-6)
     lv_draw_rect_dsc_t icon_dsc;
@@ -684,6 +684,30 @@ static void draw_media_canvas(struct zmk_widget_screen *w) {
         lv_canvas_draw_rect(canvas, 28, 4, 3, 1, &icon_dsc);
         lv_canvas_draw_rect(canvas, 28, 5, 2, 1, &icon_dsc);
         lv_canvas_draw_rect(canvas, 28, 6, 1, 1, &icon_dsc);
+    }
+
+    // Progress bar at y=29,30 (between separator y=28 and bottom border y=31)
+    if (w->state.media_total_time > 0) {
+        int16_t fill_w = (int16_t)((uint32_t)cur_sec * 32u / w->state.media_total_time);
+        if (fill_w > 32) fill_w = 32;
+        uint8_t bar_phase = (w->state.media_play_status == 1)
+                            ? (uint8_t)((k_uptime_get() / 500) % 2) : 0;
+        lv_draw_rect_dsc_t bar_dsc;
+        init_rect_dsc(&bar_dsc, LVGL_FOREGROUND);
+        // Solid 2px end cap at leading edge (both rows)
+        int16_t cap_start = fill_w - 2;
+        if (cap_start < 0) cap_start = 0;
+        if (fill_w > 0) {
+            lv_canvas_draw_rect(canvas, cap_start, 29, fill_w - cap_start, 2, &bar_dsc);
+        }
+        // Dithered checkerboard: rows y=29 and y=30 are complementary
+        for (int16_t x = 0; x < cap_start; x++) {
+            if ((x + bar_phase) % 2 == 1) {
+                lv_canvas_draw_rect(canvas, x, 29, 1, 1, &bar_dsc);
+            } else {
+                lv_canvas_draw_rect(canvas, x, 30, 1, 1, &bar_dsc);
+            }
+        }
     }
 #endif /* CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX */
 
@@ -771,6 +795,24 @@ static void media_scroll_stop(struct zmk_widget_screen *w) {
     }
     w->media_scroll_offset = 0;
     lv_canvas_fill_bg(w->media_canvas, LVGL_BACKGROUND, LV_OPA_COVER);
+}
+
+static void media_pos_timer_cb(lv_timer_t *timer) {
+    struct zmk_widget_screen *w = (struct zmk_widget_screen *)timer->user_data;
+    draw_media_canvas(w);
+}
+
+static void media_pos_timer_start(struct zmk_widget_screen *w) {
+    if (w->media_pos_timer == NULL) {
+        w->media_pos_timer = lv_timer_create(media_pos_timer_cb, 1000, w);
+    }
+}
+
+static void media_pos_timer_stop(struct zmk_widget_screen *w) {
+    if (w->media_pos_timer != NULL) {
+        lv_timer_del(w->media_pos_timer);
+        w->media_pos_timer = NULL;
+    }
 }
 #endif /* CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL */
 
@@ -1094,6 +1136,11 @@ static void media_extended_update_cb(struct media_extended_notification notif) {
         widget->state.media_artist[sizeof(widget->state.media_artist) - 1] = '\0';
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
         widget->media_position_ts = k_uptime_get();
+        if (notif.play_status == 1) {
+            media_pos_timer_start(widget);
+        } else {
+            media_pos_timer_stop(widget);
+        }
         if (artist_changed) {
             media_scroll_reset(widget);
         } else {
@@ -1488,6 +1535,7 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
         w->media_scroll_offset = 0;
         w->media_scroll_phase = MEDIA_SCROLL_START_PAUSE;
         w->media_scroll_timer = NULL;
+        w->media_pos_timer = NULL;
         w->media_position_ts = 0;
 
         /* Small 32×32 canvas for the media text row. Positioned in LVGL landscape so that
