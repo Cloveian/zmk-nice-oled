@@ -561,6 +561,8 @@ ZMK_SUBSCRIPTION(widget_mods_status, zmk_keycode_state_changed);
 #define DRAW_HID_STATUS_FONTS &lv_font_montserrat_14
 #elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 5
 #define DRAW_HID_STATUS_FONTS &hid_font_5
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 6
+#define DRAW_HID_STATUS_FONTS &hid_font_6
 #elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 7
 #define DRAW_HID_STATUS_FONTS &hid_font_7
 #elif CONFIG_NICE_OLED_WIDGET_RAW_HID_FONT_SIZE == 8
@@ -573,6 +575,8 @@ ZMK_SUBSCRIPTION(widget_mods_status, zmk_keycode_state_changed);
 #define DRAW_HID_MEDIA_FONTS &lv_font_montserrat_14
 #elif CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE == 5
 #define DRAW_HID_MEDIA_FONTS &hid_font_5
+#elif CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE == 6
+#define DRAW_HID_MEDIA_FONTS &hid_font_6
 #elif CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE == 7
 #define DRAW_HID_MEDIA_FONTS &hid_font_7
 #elif CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE == 8
@@ -908,7 +912,9 @@ static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state,
                             LV_COORD_MAX, &label_media, state->media_player);
 #endif
 
-    } else {
+    }
+#if !IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
+    else {
         //  Dibuja mensaje "HID not found"
 
         // Dibujar "HID"
@@ -928,6 +934,7 @@ static void draw_hid_status(lv_obj_t *canvas, const struct status_state *state,
                         label_volume.line_space, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
         lv_canvas_draw_text(canvas, hid_area_x, current_y, hid_area_width, &label_volume, "found");
     }
+#endif
 }
 
 //  Listener para estado de conexión HID
@@ -955,6 +962,27 @@ static void hid_is_connected_update_cb(struct is_connected_notification is_conne
                 lv_obj_add_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
             }
 #endif
+        }
+#endif
+        // Hide WPM animation widgets when HID is connected; show when disconnected.
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_WPM_LUNA)
+        if (is_connected.value) {
+            lv_obj_add_flag(zmk_widget_luna_obj(&luna_widget), LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_clear_flag(zmk_widget_luna_obj(&luna_widget), LV_OBJ_FLAG_HIDDEN);
+        }
+#elif IS_ENABLED(CONFIG_NICE_OLED_WIDGET_WPM_BONGO_CAT)
+        if (is_connected.value) {
+            lv_obj_add_flag(zmk_widget_wpm_bongo_cat_obj(&wpm_bongo_cat_widget), LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_clear_flag(zmk_widget_wpm_bongo_cat_obj(&wpm_bongo_cat_widget), LV_OBJ_FLAG_HIDDEN);
+        }
+#endif
+#if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RESPONSIVE_BONGO_CAT)
+        if (is_connected.value) {
+            lv_obj_add_flag(zmk_widget_responsive_bongo_cat_obj(&responsive_bongo_cat_widget), LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_clear_flag(zmk_widget_responsive_bongo_cat_obj(&responsive_bongo_cat_widget), LV_OBJ_FLAG_HIDDEN);
         }
 #endif
         draw_canvas(widget);
