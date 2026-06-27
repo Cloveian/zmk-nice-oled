@@ -9,7 +9,8 @@ Usage:
     python3 gen_boikisser_epaper.py -o /path/to/boikisser_epaper.c
 """
 
-import argparse, math
+import argparse, math, os
+from PIL import Image, ImageDraw, ImageFont
 
 _W, _H = 68, 67
 _PAL = 8
@@ -323,39 +324,31 @@ _FRAMES = [
 ]
 
 
-def _unpack(data, w, h):
-    """Packed 1-bit rows (MSB first, row-padded) → flat list of 0/1 pixels."""
-    stride = math.ceil(w / 8)
-    px = []
-    for row in range(h):
-        for col in range(w):
-            b = data[row * stride + col // 8]
-            px.append((b >> (7 - col % 8)) & 1)
-    return px
-
-
-def _rotate_cw(px, w, h):
-    """CW 90°: pixel (x,y) → (h-1-y, x). Returns (pixels, new_w, new_h)."""
-    nw, nh = h, w
-    out = [0] * (nw * nh)
+def _decode(data, w, h):
+    img = Image.new("RGBA", (w, h), (255, 255, 255, 0))
+    px, rb = img.load(), math.ceil(w / 8)
     for y in range(h):
         for x in range(w):
-            out[x * nw + (h - 1 - y)] = px[y * w + x]
-    return out, nw, nh
+            b = data[y * rb + x // 8]
+            px[x, y] = (0, 0, 0, 255) if (b >> (7 - (x % 8))) & 1 else (255, 255, 255, 0)
+    return img
 
 
-def _pack(px, w, h):
-    """Flat 0/1 pixel list → packed 1-bit rows (MSB first, row-padded)."""
-    stride = math.ceil(w / 8)
-    data = []
-    for row in range(h):
-        for bi in range(stride):
-            byte = 0
-            for bit in range(8):
-                col = bi * 8 + bit
-                byte = (byte << 1) | (px[row * w + col] if col < w else 0)
-            data.append(byte)
-    return data
+def _encode(img):
+    w, h = img.size
+    rb, out = math.ceil(w / 8), []
+    for y in range(h):
+        bv, bp = 0, 7
+        for x in range(w):
+            r, g, b, a = img.getpixel((x, y))
+            if a > 128 and (r + g + b) / 3 < 128:
+                bv |= (1 << bp)
+            bp -= 1
+            if bp < 0:
+                out.append(bv); bv, bp = 0, 7
+        if bp != 7:
+            out.append(bv)
+    return out
 
 
 def _emit(lines, name, pixels):
@@ -399,21 +392,33 @@ def _desc(lines, name, w, h, ds):
 def main():
     ap = argparse.ArgumentParser(description="Generate boikisser epaper frames (baked in)")
     ap.add_argument("-o", "--output", default="boikisser_epaper.c")
+    ap.add_argument("--text", default="")
+    ap.add_argument("--text-frames", default="3,4,5,6")
+    ap.add_argument("--symbol-prefix", default=_SYM)
     args = ap.parse_args()
 
-    sym = _SYM
+    tf = set()
+    if args.text:
+        for p in args.text_frames.split(","):
+            try: tf.add(int(p.strip()) - 1)
+            except ValueError: pass
 
-    # Rotate each frame CCW 90° (display is landscape 160x68; driver doesn't
-    # auto-rotate lv_animimg objects, so the pixel data must be pre-rotated).
-    rotated_frames = []
-    rw = rh = None
-    for fd in _FRAMES:
-        px = _unpack(fd, _W, _H)
-        rpx, rw, rh = _rotate_cw(px, _W, _H)
-        rotated_frames.append(_pack(rpx, rw, rh))
+    sym = args.symbol_prefix
+
+    TEXT_H = 9
+    GAP = 1
+    FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "fonts", "PixelOperatorMono.ttf")
+    if args.text:
+        font = ImageFont.truetype(FONT_PATH, size=16)
+
+    # After CW 90° rotation (_W=68, _H=67): new size is rw=67, rh=68
+    rw, rh = _H, _W
+    frame_w = rw + GAP + TEXT_H if args.text else rw
 
     lines = []
-    lines.append(f"/* Generated: {sym} epaper animation, {len(rotated_frames)} frames, {rw}x{rh} (CW 90 rotated from {_W}x{_H}) */")
+    lines.append(f"/* Generated: {sym} epaper animation, {len(_FRAMES)} frames, {frame_w}x{rh} (CW 90 rotated from {_W}x{_H}) */")
+    if args.text:
+        lines.append(f"/* Text: \"{args.text}\" on {sorted(f+1 for f in tf)} */")
     lines.append("#include <lvgl.h>")
     lines.append("")
     lines.append("#ifndef LV_ATTRIBUTE_MEM_ALIGN")
@@ -421,16 +426,54 @@ def main():
     lines.append("#endif")
     lines.append("")
 
-    for idx, fd in enumerate(rotated_frames):
-        _emit(lines, f"{sym}_{idx}", fd)
+    last = None
+    for idx, fd in enumerate(_FRAMES):
+        nm = f"{sym}_{idx}"
+        img = _decode(fd, _W, _H)
+        img = img.transpose(Image.Transpose.ROTATE_270)  # CW 90°; now rw×rh = 67×68
 
-    ds = _PAL + len(rotated_frames[0])
-    for idx in range(len(rotated_frames)):
-        _desc(lines, f"{sym}_{idx}", rw, rh, ds)
+        if idx in tf and args.text:
+            Y_OFF = -20
+            tmp = Image.new("RGBA", (1, 1))
+            dr = ImageDraw.Draw(tmp)
+            try:
+                bb = dr.textbbox((0, Y_OFF), args.text, font=font)
+                tw, th = bb[2]-bb[0], bb[3]-bb[1]
+                y_draw = Y_OFF - bb[1]
+            except AttributeError:
+                tw, th = dr.textsize(args.text, font=font)
+                y_draw = 0
+            tt = Image.new("RGBA", (tw, th), (255,255,255,0))
+            dr = ImageDraw.Draw(tt)
+            dr.text((0, y_draw), args.text, fill=(0,0,0,255), font=font)
+            try: tr = tt.transpose(Image.Transpose.TRANSPOSE)
+            except AttributeError: tr = tt.transpose(Image.TRANSPOSE)
+            tr = tr.transpose(Image.FLIP_LEFT_RIGHT)
+            # tr is (th, tw); center in (TEXT_H=9, rh=68)
+            text_img = Image.new("RGBA", (TEXT_H, rh), (255,255,255,0))
+            ox = max(0, (TEXT_H - th) // 2)
+            oy = max(0, (rh - tw) // 2)
+            text_img.paste(tr, (ox, oy))
+            frame = Image.new("RGBA", (frame_w, rh), (255,255,255,0))
+            frame.paste(img, (0, 0))
+            frame.paste(text_img, (rw + GAP, 0))
+        else:
+            frame = Image.new("RGBA", (frame_w, rh), (255,255,255,0))
+            frame.paste(img, (0, 0))
+
+        pixels = _encode(frame)
+        last = pixels
+        _emit(lines, nm, pixels)
+
+    ds = _PAL + len(last)
+    for idx in range(len(_FRAMES)):
+        _desc(lines, f"{sym}_{idx}", frame_w, rh, ds)
 
     with open(args.output, "w") as f:
         f.write("\n".join(lines) + "\n")
-    print(f"Wrote {args.output}  ({len(rotated_frames)} frames, {rw}x{rh}, ds={ds})")
+    print(f"Wrote {args.output}  ({len(_FRAMES)} frames, {frame_w}x{rh}, ds={ds})")
+    if args.text:
+        print(f"Text: \"{args.text}\" on {sorted(f+1 for f in tf)} ({TEXT_H}px area)")
 
 
 if __name__ == "__main__":

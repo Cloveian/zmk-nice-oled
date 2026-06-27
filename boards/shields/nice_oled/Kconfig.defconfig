@@ -164,7 +164,6 @@ config NICE_OLED_BOIKISSER_EPAPER
 config NICE_OLED_BOIKISSER_TEXT
     string "Text to overlay on boikisser animation"
     default ""
-    depends on !NICE_OLED_BOIKISSER_EPAPER
     help
       Text rendered above the boikisser character. Leave empty
       to use the pre-generated frames. When non-empty, the build
