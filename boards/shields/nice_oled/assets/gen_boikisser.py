@@ -125,11 +125,11 @@ def main():
     lines.append("#endif")
     lines.append("")
 
-    TEXT_H = 7
+    TEXT_H = 9
     GAP = 1
-    FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "fonts", "Tiny5-Regular.ttf")
+    FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "fonts", "PixelOperatorMono.ttf")
     if args.text:
-        font = ImageFont.truetype(FONT_PATH, size=8)
+        font = ImageFont.truetype(FONT_PATH, size=16)
         text_w = _CAT_W + GAP + TEXT_H
     else:
         text_w = _CAT_W
