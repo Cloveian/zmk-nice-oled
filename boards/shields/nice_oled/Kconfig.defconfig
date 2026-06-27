@@ -153,9 +153,18 @@ config NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER
 
 if NICE_OLED_WIDGET_ANIMATION_PERIPHERAL_BOIKISSER
 
+config NICE_OLED_BOIKISSER_EPAPER
+    bool "Use high-res boikisser frames for epaper display (68x67)"
+    default n
+    help
+      When enabled, compiles assets/boikisser_epaper.c (68x67 frames)
+      instead of the default 31x32 OLED frames. Enable this together
+      with CONFIG_NICE_EPAPER_ON for the nice!epaper shield.
+
 config NICE_OLED_BOIKISSER_TEXT
     string "Text to overlay on boikisser animation"
     default ""
+    depends on !NICE_OLED_BOIKISSER_EPAPER
     help
       Text rendered above the boikisser character. Leave empty
       to use the pre-generated frames. When non-empty, the build
