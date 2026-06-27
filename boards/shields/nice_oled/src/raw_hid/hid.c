@@ -132,7 +132,9 @@ static void process_raw_hid_data(uint8_t *data) {
         notification.total_time  = (uint16_t)data[1] | ((uint16_t)data[2] << 8);
         notification.position    = (uint16_t)data[3] | ((uint16_t)data[4] << 8);
         notification.play_status = data[5];
-        uint8_t artist_len = MIN(data[6], 25);
+        uint8_t avail = (CONFIG_NICE_OLED_WIDGET_RAW_HID_REPORT_SIZE > 7)
+                        ? (uint8_t)(CONFIG_NICE_OLED_WIDGET_RAW_HID_REPORT_SIZE - 7) : 0;
+        uint8_t artist_len = MIN(data[6], MIN(25u, avail));
         memcpy(notification.artist, &data[7], artist_len);
         notification.artist[artist_len] = '\0';
         raise_media_extended_notification(notification);
