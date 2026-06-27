@@ -334,13 +334,13 @@ def _unpack(data, w, h):
     return px
 
 
-def _rotate_ccw(px, w, h):
-    """CCW 90°: pixel (x,y) → (y, w-1-x). Returns (pixels, new_w, new_h)."""
+def _rotate_cw(px, w, h):
+    """CW 90°: pixel (x,y) → (h-1-y, x). Returns (pixels, new_w, new_h)."""
     nw, nh = h, w
     out = [0] * (nw * nh)
     for y in range(h):
         for x in range(w):
-            out[(w - 1 - x) * nw + y] = px[y * w + x]
+            out[x * nw + (h - 1 - y)] = px[y * w + x]
     return out, nw, nh
 
 
@@ -409,11 +409,11 @@ def main():
     rw = rh = None
     for fd in _FRAMES:
         px = _unpack(fd, _W, _H)
-        rpx, rw, rh = _rotate_ccw(px, _W, _H)
+        rpx, rw, rh = _rotate_cw(px, _W, _H)
         rotated_frames.append(_pack(rpx, rw, rh))
 
     lines = []
-    lines.append(f"/* Generated: {sym} epaper animation, {len(rotated_frames)} frames, {rw}x{rh} (CCW 90 rotated from {_W}x{_H}) */")
+    lines.append(f"/* Generated: {sym} epaper animation, {len(rotated_frames)} frames, {rw}x{rh} (CW 90 rotated from {_W}x{_H}) */")
     lines.append("#include <lvgl.h>")
     lines.append("")
     lines.append("#ifndef LV_ATTRIBUTE_MEM_ALIGN")
