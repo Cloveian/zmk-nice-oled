@@ -323,6 +323,41 @@ _FRAMES = [
 ]
 
 
+def _unpack(data, w, h):
+    """Packed 1-bit rows (MSB first, row-padded) → flat list of 0/1 pixels."""
+    stride = math.ceil(w / 8)
+    px = []
+    for row in range(h):
+        for col in range(w):
+            b = data[row * stride + col // 8]
+            px.append((b >> (7 - col % 8)) & 1)
+    return px
+
+
+def _rotate_ccw(px, w, h):
+    """CCW 90°: pixel (x,y) → (y, w-1-x). Returns (pixels, new_w, new_h)."""
+    nw, nh = h, w
+    out = [0] * (nw * nh)
+    for y in range(h):
+        for x in range(w):
+            out[(w - 1 - x) * nw + y] = px[y * w + x]
+    return out, nw, nh
+
+
+def _pack(px, w, h):
+    """Flat 0/1 pixel list → packed 1-bit rows (MSB first, row-padded)."""
+    stride = math.ceil(w / 8)
+    data = []
+    for row in range(h):
+        for bi in range(stride):
+            byte = 0
+            for bit in range(8):
+                col = bi * 8 + bit
+                byte = (byte << 1) | (px[row * w + col] if col < w else 0)
+            data.append(byte)
+    return data
+
+
 def _emit(lines, name, pixels):
     u = name.upper()
     lines.append(f"#ifndef LV_ATTRIBUTE_IMG_{u}")
@@ -367,8 +402,18 @@ def main():
     args = ap.parse_args()
 
     sym = _SYM
+
+    # Rotate each frame CCW 90° (display is landscape 160x68; driver doesn't
+    # auto-rotate lv_animimg objects, so the pixel data must be pre-rotated).
+    rotated_frames = []
+    rw = rh = None
+    for fd in _FRAMES:
+        px = _unpack(fd, _W, _H)
+        rpx, rw, rh = _rotate_ccw(px, _W, _H)
+        rotated_frames.append(_pack(rpx, rw, rh))
+
     lines = []
-    lines.append(f"/* Generated: {sym} epaper animation, {len(_FRAMES)} frames, {_W}x{_H} */")
+    lines.append(f"/* Generated: {sym} epaper animation, {len(rotated_frames)} frames, {rw}x{rh} (CCW 90 rotated from {_W}x{_H}) */")
     lines.append("#include <lvgl.h>")
     lines.append("")
     lines.append("#ifndef LV_ATTRIBUTE_MEM_ALIGN")
@@ -376,16 +421,16 @@ def main():
     lines.append("#endif")
     lines.append("")
 
-    for idx, fd in enumerate(_FRAMES):
+    for idx, fd in enumerate(rotated_frames):
         _emit(lines, f"{sym}_{idx}", fd)
 
-    ds = _PAL + len(_FRAMES[0])
-    for idx in range(len(_FRAMES)):
-        _desc(lines, f"{sym}_{idx}", _W, _H, ds)
+    ds = _PAL + len(rotated_frames[0])
+    for idx in range(len(rotated_frames)):
+        _desc(lines, f"{sym}_{idx}", rw, rh, ds)
 
     with open(args.output, "w") as f:
         f.write("\n".join(lines) + "\n")
-    print(f"Wrote {args.output}  ({len(_FRAMES)} frames, {_W}x{_H}, ds={ds})")
+    print(f"Wrote {args.output}  ({len(rotated_frames)} frames, {rw}x{rh}, ds={ds})")
 
 
 if __name__ == "__main__":
