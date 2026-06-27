@@ -125,11 +125,11 @@ def main():
     lines.append("#endif")
     lines.append("")
 
-    TEXT_H = 9
+    TEXT_H = 6
     GAP = 1
-    FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "fonts", "PixelOperatorMono.ttf")
+    FONT_PATH = os.path.join(os.path.dirname(__file__), "..", "src", "fonts", "Tiny5-Regular.ttf")
     if args.text:
-        font = ImageFont.truetype(FONT_PATH, size=16)
+        font = ImageFont.truetype(FONT_PATH, size=6)
         text_w = _CAT_W + GAP + TEXT_H
     else:
         text_w = _CAT_W
@@ -183,7 +183,7 @@ def main():
         f.write("\n".join(lines))
     print(f"Wrote {args.output}  ({len(_FRAMES)} frames, {wo}x{ho}, ds={ds})")
     if args.text:
-        print(f"Text: \"{args.text}\" on {sorted(f+1 for f in tf)} ({TEXT_H}px area, size=8)")
+        print(f"Text: \"{args.text}\" on {sorted(f+1 for f in tf)} ({TEXT_H}px area, size=6)")
 
 
 if __name__ == "__main__":
