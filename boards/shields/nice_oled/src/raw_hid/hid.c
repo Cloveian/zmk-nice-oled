@@ -111,16 +111,19 @@ static void process_raw_hid_data(uint8_t *data) {
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX)
     case _MEDIA_TITLE: {
         struct media_player_linux_notification notification = {0};
-        uint8_t title_len = MIN(data[1], sizeof(notification.media_player) - 1);
+        uint8_t title_len = MIN(data[1], MIN(sizeof(notification.media_player) - 1,
+                                             CONFIG_NICE_OLED_WIDGET_RAW_HID_REPORT_SIZE - 2));
         memcpy(notification.media_player, &data[2], title_len);
         notification.media_player[title_len] = '\0';
         raise_media_player_linux_notification(notification);
         break;
     }
     case _MEDIA_PLAYER_LINUX: {
-        struct media_player_linux_notification notification;
-        memcpy(notification.media_player, &data[1], sizeof(notification.media_player) - 1);
-        notification.media_player[sizeof(notification.media_player) - 1] = '\0';
+        struct media_player_linux_notification notification = {0};
+        uint8_t player_len = MIN(sizeof(notification.media_player) - 1,
+                                 CONFIG_NICE_OLED_WIDGET_RAW_HID_REPORT_SIZE - 1);
+        memcpy(notification.media_player, &data[1], player_len);
+        notification.media_player[player_len] = '\0';
         raise_media_player_linux_notification(notification);
         break;
     }

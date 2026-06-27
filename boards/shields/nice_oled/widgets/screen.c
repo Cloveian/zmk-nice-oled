@@ -729,7 +729,7 @@ static void draw_media_canvas(struct zmk_widget_screen *w) {
 
     memcpy(media_cbuf_tmp, w->media_cbuf, sizeof(media_cbuf_tmp));
 
-    lv_img_dsc_t img;
+    lv_img_dsc_t img = {0};
     img.data = (void *)media_cbuf_tmp;
     img.header.cf = LV_IMG_CF_TRUE_COLOR;
     img.header.w = 32;
@@ -799,7 +799,9 @@ static void media_scroll_stop(struct zmk_widget_screen *w) {
         w->media_scroll_timer = NULL;
     }
     w->media_scroll_offset = 0;
-    lv_canvas_fill_bg(w->media_canvas, LVGL_BACKGROUND, LV_OPA_COVER);
+    if (w->media_canvas != NULL) {
+        lv_canvas_fill_bg(w->media_canvas, LVGL_BACKGROUND, LV_OPA_COVER);
+    }
 }
 #endif /* CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL */
 
@@ -949,7 +951,9 @@ static void hid_is_connected_update_cb(struct is_connected_notification is_conne
         if (!is_connected.value) {
             media_scroll_stop(widget);
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
-            lv_obj_add_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+            if (widget->media_canvas != NULL) {
+                lv_obj_add_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+            }
 #endif
         }
 #endif
@@ -1062,8 +1066,9 @@ ZMK_SUBSCRIPTION(widget_weather_status, weather_notification);
 static void spotify_status_update_cb(struct spotify_notification spotify) {
     struct zmk_widget_screen *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
-        memcpy(widget->state.media_player, spotify.media_player,
-               sizeof(widget->state.media_player));
+        strncpy(widget->state.media_player, spotify.media_player,
+                sizeof(widget->state.media_player) - 1);
+        widget->state.media_player[sizeof(widget->state.media_player) - 1] = '\0';
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
         media_scroll_reset(widget);
 #endif
@@ -1090,10 +1095,12 @@ ZMK_SUBSCRIPTION(widget_spotify_status, spotify_notification);
 static void media_player_linux_update_cb(struct media_player_linux_notification notif) {
     struct zmk_widget_screen *widget;
     SYS_SLIST_FOR_EACH_CONTAINER(&widgets, widget, node) {
-        memcpy(widget->state.media_player, notif.media_player,
-               sizeof(notif.media_player));
+        strncpy(widget->state.media_player, notif.media_player,
+                sizeof(widget->state.media_player) - 1);
+        widget->state.media_player[sizeof(widget->state.media_player) - 1] = '\0';
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL)
         media_scroll_reset(widget);
+        draw_media_canvas(widget);
 #endif
         draw_canvas(widget);
     }
@@ -1129,7 +1136,9 @@ static void media_extended_update_cb(struct media_extended_notification notif) {
         if (notif.play_status == 1) {
             // Playing: show canvas and start scroll/update timer
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
-            lv_obj_clear_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+            if (widget->media_canvas != NULL) {
+                lv_obj_clear_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+            }
 #endif
             media_active_start(widget);
         } else {
@@ -1140,10 +1149,14 @@ static void media_extended_update_cb(struct media_extended_notification notif) {
             }
 #if IS_ENABLED(CONFIG_NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK)
             if (notif.play_status == 0) {
-                lv_obj_add_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+                if (widget->media_canvas != NULL) {
+                    lv_obj_add_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+                }
             } else {
                 // Paused: keep visible but frozen
-                lv_obj_clear_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+                if (widget->media_canvas != NULL) {
+                    lv_obj_clear_flag(widget->media_canvas, LV_OBJ_FLAG_HIDDEN);
+                }
             }
 #endif
         }
