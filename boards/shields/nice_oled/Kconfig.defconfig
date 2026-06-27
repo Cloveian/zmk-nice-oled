@@ -420,7 +420,7 @@ endif # NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL
 config NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK
     bool "Hide media canvas when stopped or HID disconnected"
     default n
-    depends on NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL
+    depends on NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_SCROLL && NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_LINUX
     help
       When enabled, the 32x32 media canvas is hidden while the media player
       is stopped (status 0) or the HID companion app is disconnected.
@@ -429,14 +429,17 @@ config NICE_OLED_WIDGET_MEDIA_CANVAS_FALLBACK
 
 config NICE_OLED_WIDGET_RAW_HID_MEDIA_PLAYER_FONT_SIZE
     int "Font size for media player text (px)"
+    range 5 7
     default 7
     depends on NICE_OLED_ON
     help
       Pixel height of the font used for the media player line. Follows the
-      same hid_font_N naming convention as FONT_SIZE. Defaults to 7.
+      same hid_font_N naming convention as FONT_SIZE. Sizes 5 and 7
+      (cloveian5px/7px) are provided. Defaults to 7.
 
 config NICE_OLED_WIDGET_RAW_HID_FONT_SIZE
     int "Font size for RAW HID display (px)"
+    range 5 7
     default 7
     depends on NICE_OLED_ON
     help

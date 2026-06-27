@@ -1,7 +1,6 @@
 /*******************************************************************************
  * Size: 16 px
  * Bpp: 1
- * Opts: --font /home/cloveian/Downloads/cloveian7px.ttf --size 16 --format lvgl --bpp 1 --range 0x20-0x7F --no-compress -o hid_font_7.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
